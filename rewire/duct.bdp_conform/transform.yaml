@@ -1,0 +1,63 @@
+id: duct.bdp_conform
+version: 0.1.0
+kind: conformer
+title: DUCT Base Data Package -> silver buildings, districts, land_cover (+ id_bridge)
+description: >
+  Runs DUCT Explorer's own, unmodified BDP importer (server/explorer/bdp/bdp.py,
+  DUCTBaseDataPackageDB.prepare_city_admin_zones / prepare_land_use_zoning / prepare_building_footprints)
+  on a Bronze DUCT base data package. Then it reprojects the results to EPSG:3414 and maps them onto the Silver
+  buildings, districts and land_cover tables. DUCT building ids and DUCT admin-zone ids go into id_bridge.
+  Building hub key: osm:<id>. DUCT footprints come from OpenStreetMap, and DUCT's id is the OSM element id.
+  District hub key: the URA MP2019 subzone code (SUBZONE_C). land_cover: one row per cell of DUCT's ~300 m
+  LCZ raster (cell_id duct_lcz:<row>_<col> on the island-wide grid). tree/grass cover is the area fraction of
+  DUCT's land-use-derived land-cover polygons.
+upstream:
+  repo: tetratorus/duct-explorer (fork of cooling-singapore/duct-explorer)
+  license: MIT
+  commercial_use: review
+  notes: >
+    Code is MIT (Singapore-ETH Centre). The data has its own licences. Building footprints are OpenStreetMap
+    (ODbL: attribution plus share-alike on derived databases). Subzones and land use are URA Master Plan 2019
+    via data.gov.sg (Singapore Open Data Licence v1.0). The LCZ baseline comes from Cooling Singapore and has
+    no licence stated in the repo. That is why commercial use is marked review.
+runtime:
+  type: python
+  entrypoint: "adapter:run"
+  notes: >
+    Python 3.10 (DUCT server does not support newer versions). Needs server/requirements.txt installed
+    (geopandas, rtree, rasterio, saas-middleware), because the adapter imports server/explorer from this repo.
+inputs:
+  - name: bdp
+    source: "bronze:duct_bdp"
+    columns: [city-admin-zones.geojson, land-use.geojson, building-footprints.geojson, lcz-baseline.tif]
+outputs:
+  - name: buildings
+    key: [building_id]
+  - name: districts
+    key: [district_id]
+  - name: land_cover
+    key: [cell_id]
+  - name: id_bridge
+    key: [source, source_id]
+golden:
+  - name: queenstown
+    path: golden/queenstown
+    tolerance: {rtol: 1.0e-6, atol: 1.0e-6}
+    reference: >
+      Expected outputs were frozen with `spine freeze` from the unmodified upstream DUCT importer functions on
+      Queenstown subzones QTSZ03 (Commonwealth) and QTSZ04 (Tanglin Halt). The inputs are the bundled DUCT
+      bdp/building-footprints and bdp/lcz-baseline plus URA MP2019 subzones and land use from data.gov.sg,
+      clipped by rewire/bronze/make_fixture.py: 140 buildings, 81 land-use parcels, 8 LCZ cells.
+readiness:
+  level: 5
+  evidence:
+    - "spine validate and spine test (golden queenstown) pass locally on Python 3.10.12"
+    - "pytest rewire/tests passes. It covers the golden test, Silver schema/CRS/key checks on the adapter outputs, and id_bridge coverage of every DUCT building id"
+    - "Upstream importer code is imported and run as-is. git diff shows no change under server/explorer"
+  gaps:
+    - "Not run on the full island-wide BDP (110k buildings). Only the 2-subzone fixture was run"
+    - "Vegetation (Trees.sg) and anthropogenic-heat BDP layers are not conformed. Silver has no table for them yet"
+    - "Building hub key osm:<id> is not yet agreed with other conformers (e.g. twa.sg_stack_conform). If they differ, they should re-bridge via id_bridge (match_method spatial_overlap)"
+    - "DUCT replaces missing heights with a 10 m default and the default is not flagged in Silver. storeys, year_built and plot_id are null"
+    - "IGBP->LCZ mapping for non-urban raster classes is an adapter choice (documented in adapter.py), not DUCT's"
+    - "Bronze source not yet registered with `spine bronze-add` in a shared lake. The golden inputs act as the Bronze package"

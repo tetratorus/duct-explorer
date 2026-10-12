@@ -1,0 +1,49 @@
+# Which spine Gold outputs each DUCT Explorer analysis reads in "spine" mode
+# (instead of submitting DUCT/SaaS processor jobs).
+# transform ids are the exact ids from sg-urban-spine spec/LAYERS.md. Gold table names belong to the owning repo,
+# so the client discovers them at runtime: every OGC API collection `gold.<transform_id>.<table>`.
+# `replaces` lists the DUCT processors that are skipped and the Explorer result names the Gold tables stand in for.
+silver:
+  # Every analysis shares the city model produced by duct.bdp_conform (this repo).
+  - silver.buildings
+  - silver.districts
+  - silver.land_cover
+analyses:
+  building-energy-and-photovoltaics:
+    transforms: [cea.building_demand, cea.solar_potential]
+    join_key: building_id
+    replaces:
+      processors: [bem-cea-gen, bem-cea-bee]
+      results: [energy_consumption, energy_use_intensity, energy_efficiency_index, ah_emissions,
+                energy_generation, energy_generation_intensity, generation_consumption_ratio]
+  district-cooling:
+    transforms: [cea.building_demand]
+    join_key: building_id
+    replaces:
+      processors: [bem-cea-gen, bem-cea-dcn]
+      results: [supply_systems, ah_emissions]
+    gap: >
+      LAYERS.md has no transform id for CEA's district-cooling network optimisation (bem-cea-dcn). Only the
+      per-building cooling demand it starts from (cea.building_demand) is available as Gold. supply_systems
+      stays empty until such a transform is added to the id table.
+  mesoscale-urban-climate:
+    transforms: [duct.wrf_mesoscale]
+    join_key: cell_id
+    replaces:
+      processors: [ucm-wrf-prep, ucm-wrf-sim]
+      results: [2m_air_temperature, 2m_relative_humidity, wet_bulb_globe_temperature]
+    gap: "duct.wrf_mesoscale is an external (HPC) transform. Gold exists only after an HPC run is published."
+  microscale-urban-climate:
+    transforms: [duct.palm_microscale]
+    join_key: cell_id
+    replaces:
+      processors: [ucm-palm-prep, ucm-palm-sim]
+      results: [air_temperature, surface_temperature, relative_humidity, wind_speed, wind_direction,
+                wind_speed_and_direction]
+    gap: "duct.palm_microscale is an external (HPC) transform. Gold exists only after an HPC run is published."
+  wind-corridor-potential:
+    transforms: [duct.mva_wind_corridor]
+    join_key: cell_id
+    replaces:
+      processors: [ucm-mva-uwc, ucm-mva-uvp]
+      results: [hotspots, wind-corridors-ns, wind-corridors-ew, wind-corridors-nwse, wind-corridors-nesw]
