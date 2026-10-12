@@ -18,3 +18,5 @@ export * from './lib/compare/compare.model';
 export * from './lib/compare/compare.service';
 export * from './lib/import/import.model';
 export * from './lib/import/import.service';
+export * from './lib/spine/spine-gold.model';
+export * from './lib/spine/spine-gold.service';
